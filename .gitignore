@@ -1,0 +1,14 @@
+node_modules
+dist
+build
+.vite
+.env
+.env.local
+.DS_Store
+**/node_modules
+**/dist
+**/build
+**/.vite
+.env
+.env.*
+.DS_Store
