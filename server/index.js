@@ -9,12 +9,29 @@ app.use(cors());
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 const server = http.createServer(app);
+const allowedOrigins = (process.env.CLIENT_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_ORIGIN || "*",
+    origin: (origin, cb) => {
+      // allow server-to-server / health checks
+      if (!origin) return cb(null, true);
+
+      // if you haven't set CLIENT_ORIGINS, allow all (safe for dev)
+      if (allowedOrigins.length === 0) return cb(null, true);
+
+      // allow listed origins
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+
+      return cb(new Error(`CORS blocked origin: ${origin}`));
+    },
     methods: ["GET", "POST"],
   },
 });
+
 
 /**
 Room:
