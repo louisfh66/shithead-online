@@ -539,23 +539,30 @@ export default function App() {
                                 ))}
                               </div>
 
-                              {/* Face-up overlay */}
-                              <div style={styles.stackUpLayer}>
-                                {p.faceUp.map((c, i) => (
-                                  <div
-                                    key={c.id}
-                                    style={{
-                                      position: "absolute",
-                                      left: 10 + i * 6,
-                                      top: -10 - i * 3,
-                                      transform: `rotate(${i * 2}deg)`,
-                                    }}
-                                  >
-                                    <CardFace card={c} />
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
+                              {/* Face-up overlay (one per face-down card) */}
+<div style={styles.stackUpLayer}>
+  {Array.from({ length: p.faceDownCount }).map((_, i) => {
+    const c = p.faceUp[i];
+    if (!c) return null;
+
+    return (
+      <div
+        key={c.id}
+        style={{
+          position: "absolute",
+          // anchor each face-up above its face-down card’s transform offsets
+          left: i * 96 + i * 3,      // spacing + your translateX
+          top: -18 + i * 2,          // lift + your translateY
+          transform: `rotate(${-i * 2}deg)`, // match the face-down rotation
+        }}
+      >
+        <CardFace card={c} />
+      </div>
+    );
+  })}
+</div>
+
+
 
                             {/* Hand backs */}
                             <div style={styles.handBackRow}>
@@ -633,30 +640,34 @@ export default function App() {
                                 )}
                               </div>
 
-                              {/* face-up overlay */}
-                              <div style={styles.stackUpLayer}>
-                                {(you?.faceUp ?? []).map((c, i) => (
-                                  <div
-                                    key={c.id}
-                                    style={{
-                                      position: "absolute",
-                                      left: 10 + i * 6,
-                                      top: -10 - i * 3,
-                                      transform: `rotate(${i * 2}deg)`,
-                                    }}
-                                  >
-                                    <CardFace
-                                      card={c}
-                                      selected={
-                                        selectedSource === "faceUp" && selectedIds.includes(c.id)
-                                      }
-                                      onClick={
-                                        isYourTurn ? () => toggleSelectFrom("faceUp", c) : undefined
-                                      }
-                                    />
-                                  </div>
-                                ))}
-                              </div>
+                              {/* face-up overlay (one per face-down card) */}
+<div style={styles.stackUpLayer}>
+  {Array.from({ length: you?.faceDown?.length ?? 0 }).map((_, i) => {
+    const c = (you?.faceUp ?? [])[i];
+    if (!c) return null;
+
+    return (
+      <div
+        key={c.id}
+        style={{
+          position: "absolute",
+          // anchor each face-up above its face-down card’s transform offsets
+          left: i * 96 + i * 3,
+          top: -18 + i * 2,
+          transform: `rotate(${-i * 2}deg)`,
+        }}
+      >
+        <CardFace
+          card={c}
+          selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
+          onClick={isYourTurn ? () => toggleSelectFrom("faceUp", c) : undefined}
+        />
+      </div>
+    );
+  })}
+</div>
+
+
                             </div>
                           </div>
 
