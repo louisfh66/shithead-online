@@ -516,218 +516,187 @@ export default function App() {
                     </div>
 
                     <div style={styles.tableFelt}>
-                      {/* Opponents */}
-                      <div style={styles.oppTopRow}>
-                        {opponents.map((p) => (
-                          <div key={p.id} style={styles.seatBox}>
-                            <div style={styles.seatName}>
-                              {p.name} {gamePublic?.currentPlayerId === p.id ? "• TURN" : ""}
-                            </div>
+  {/* Opponents */}
+  <div style={styles.oppTopRow}>
+    {opponents.map((p) => (
+      <div key={p.id} style={styles.seatBox}>
+        <div style={styles.seatName}>
+          {p.name} {gamePublic?.currentPlayerId === p.id ? "• TURN" : ""}
+        </div>
 
-                            {/* Face-down base */}
-                            <div style={styles.stackWrap}>
-                              <div style={styles.stackDownRow}>
-                                {Array.from({ length: p.faceDownCount }).map((_, i) => (
-                                  <div
-                                    key={i}
-                                    style={{
-                                      transform: `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
-                                    }}
-                                  >
-                                    <CardBack />
-                                  </div>
-                                ))}
-                              </div>
+        {/* Face-down base + Face-up aligned 1:1 */}
+        <div style={styles.stackWrap}>
+          {/* face-down base */}
+          <div style={styles.stackDownRow}>
+            {Array.from({ length: p.faceDownCount }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  transform: `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
+                }}
+              >
+                <CardBack />
+              </div>
+            ))}
+          </div>
 
-                              {/* Face-up overlay (one per face-down card) */}
-<div style={styles.stackUpLayer}>
-  {Array.from({ length: p.faceDownCount }).map((_, i) => {
-    const c = p.faceUp[i];
-    if (!c) return null;
+          {/* face-up overlay */}
+          <div style={styles.stackUpLayer}>
+            {p.faceUp
+              .slice(0, p.faceDownCount)
+              .map((c, i) => (
+                <div
+                  key={c.id}
+                  style={{
+                    position: "absolute",
+                    left: i * 96 + i * 3,
+                    top: -18 + i * 2,
+                    transform: `rotate(${-i * 2}deg)`,
+                  }}
+                >
+                  <CardFace card={c} />
+                </div>
+              ))}
+          </div>
+        </div>
 
-    return (
-      <div
-        key={c.id}
-        style={{
-          position: "absolute",
-          // anchor each face-up above its face-down card’s transform offsets
-          left: i * 96 + i * 3,      // spacing + your translateX
-          top: -18 + i * 2,          // lift + your translateY
-          transform: `rotate(${-i * 2}deg)`, // match the face-down rotation
-        }}
-      >
-        <CardFace card={c} />
+        {/* Hand backs */}
+        <div style={styles.handBackRow}>
+          {Array.from({ length: Math.min(6, p.handCount) }).map((_, i) => (
+            <div key={i} style={{ transform: `rotate(${(i - 2.5) * 4}deg)` }}>
+              <CardBack />
+            </div>
+          ))}
+          {p.handCount > 6 && (
+            <div style={{ marginLeft: 6, fontWeight: 900, opacity: 0.85 }}>
+              +{p.handCount - 6}
+            </div>
+          )}
+        </div>
       </div>
-    );
-  })}
+    ))}
+  </div>
+
+  {/* Centre pile */}
+  <div style={styles.centerPileFloating}>
+    <div style={{ fontWeight: 1000, marginBottom: 8 }}>Pile</div>
+    <div style={styles.pileRow}>
+      {gamePublic?.pile?.slice(-8).map((c, idx) => (
+        <div key={c.id} style={{ transform: `rotate(${(idx - 3) * 2}deg)` }}>
+          <CardFace card={c} />
+        </div>
+      ))}
+      {!gamePublic?.pile?.length && <div style={styles.small}>Empty</div>}
+    </div>
+  </div>
+
+  {/* You */}
+  <div style={styles.youSeat}>
+    <div style={styles.youHeader}>
+      <div style={{ fontWeight: 1000 }}>
+        You ({yourNameInRoom}) {isYourTurn ? "• YOUR TURN" : ""}
+      </div>
+      <div style={{ opacity: 0.85, fontWeight: 800, fontSize: 12 }}>
+        Deck empty: Hand → Face-up → Face-down
+      </div>
+    </div>
+
+    <div style={styles.youLayout}>
+      {/* Table stack */}
+      <div>
+        <div style={styles.small}>Your table cards</div>
+
+        <div style={styles.stackWrap}>
+          {/* face-down base */}
+          <div style={styles.stackDownRow}>
+            {Array.from({ length: you?.faceDown?.length ?? 0 }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  transform:
+                    selectedSource === "faceDown" && selectedFaceDownIndex === i
+                      ? `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg) translateY(-8px)`
+                      : `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
+                }}
+              >
+                <CardBack
+                  label={`${i + 1}`}
+                  onClick={isYourTurn ? () => selectFaceDown(i) : undefined}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* face-up overlay */}
+          <div style={styles.stackUpLayer}>
+            {(you?.faceUp ?? [])
+              .slice(0, you?.faceDown?.length ?? 0)
+              .map((c, i) => (
+                <div
+                  key={c.id}
+                  style={{
+                    position: "absolute",
+                    left: i * 96 + i * 3,
+                    top: -18 + i * 2,
+                    transform: `rotate(${-i * 2}deg)`,
+                  }}
+                >
+                  <CardFace
+                    card={c}
+                    selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
+                    onClick={isYourTurn ? () => toggleSelectFrom("faceUp", c) : undefined}
+                  />
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Hand */}
+      <div style={{ flex: 1 }}>
+        <div style={styles.small}>Your hand</div>
+
+        <div style={styles.yourHandBig}>
+          {(you?.hand ?? []).map((c) => (
+            <CardFace
+              key={c.id}
+              card={c}
+              selected={selectedSource === "hand" && selectedIds.includes(c.id)}
+              onClick={isYourTurn ? () => toggleSelectFrom("hand", c) : undefined}
+            />
+          ))}
+          {!you?.hand?.length && <div style={styles.small}>Hand empty</div>}
+        </div>
+
+        <div style={styles.actionsRowSingle}>
+          <button
+            style={{ ...styles.primaryBtn, opacity: isYourTurn ? 1 : 0.5, width: "100%" }}
+            disabled={!isYourTurn}
+            onClick={playSelected}
+          >
+            Play Selected
+          </button>
+
+          <button
+            style={{ ...styles.secondaryBtn, opacity: isYourTurn ? 1 : 0.5, width: "100%" }}
+            disabled={!isYourTurn}
+            onClick={pickupPile}
+          >
+            Pick Up Pile
+          </button>
+        </div>
+
+        <div style={styles.hint}>
+          Rules implemented: 2/3/10 magic; 7 = next must go lower; 8 = skip;
+          burn on 10 or 4-of-a-kind ignoring 3s (burn = play again).
+          <br />
+          Enforcement: while deck exists you play from hand; after deck empty you play hand → face-up → face-down.
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-
-
-                            {/* Hand backs */}
-                            <div style={styles.handBackRow}>
-                              {Array.from({ length: Math.min(6, p.handCount) }).map((_, i) => (
-                                <div
-                                  key={i}
-                                  style={{ transform: `rotate(${(i - 2.5) * 4}deg)` }}
-                                >
-                                  <CardBack />
-                                </div>
-                              ))}
-                              {p.handCount > 6 && (
-                                <div style={{ marginLeft: 6, fontWeight: 900, opacity: 0.85 }}>
-                                  +{p.handCount - 6}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Centre pile */}
-                      <div style={styles.centerPileFloating}>
-                        <div style={{ fontWeight: 1000, marginBottom: 8 }}>Pile</div>
-                        <div style={styles.pileRow}>
-                          {gamePublic?.pile?.slice(-8).map((c, idx) => (
-                            <div
-                              key={c.id}
-                              style={{ transform: `rotate(${(idx - 3) * 2}deg)` }}
-                            >
-                              <CardFace card={c} />
-                            </div>
-                          ))}
-                          {!gamePublic?.pile?.length && <div style={styles.small}>Empty</div>}
-                        </div>
-                      </div>
-
-                      {/* You */}
-                      <div style={styles.youSeat}>
-                        <div style={styles.youHeader}>
-                          <div style={{ fontWeight: 1000 }}>
-                            You ({yourNameInRoom}) {isYourTurn ? "• YOUR TURN" : ""}
-                          </div>
-                          <div style={{ opacity: 0.85, fontWeight: 800, fontSize: 12 }}>
-                            Deck empty: Hand → Face-up → Face-down
-                          </div>
-                        </div>
-
-                        <div style={styles.youLayout}>
-                          {/* Table stack */}
-                          <div>
-                            <div style={styles.small}>Your table cards</div>
-
-                            <div style={styles.stackWrap}>
-                              {/* face-down base */}
-                              <div style={styles.stackDownRow}>
-                                {Array.from({ length: you?.faceDown?.length ?? 0 }).map(
-                                  (_, i) => (
-                                    <div
-                                      key={i}
-                                      style={{
-                                        transform:
-                                          selectedSource === "faceDown" &&
-                                          selectedFaceDownIndex === i
-                                            ? `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg) translateY(-8px)`
-                                            : `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
-                                      }}
-                                    >
-                                      <CardBack
-                                        label={`${i + 1}`}
-                                        onClick={isYourTurn ? () => selectFaceDown(i) : undefined}
-                                      />
-                                    </div>
-                                  )
-                                )}
-                              </div>
-
-                              {/* face-up overlay (one per face-down card) */}
-<div style={styles.stackUpLayer}>
-  {Array.from({ length: you?.faceDown?.length ?? 0 }).map((_, i) => {
-    const c = (you?.faceUp ?? [])[i];
-    if (!c) return null;
-
-    return (
-      <div
-        key={c.id}
-        style={{
-          position: "absolute",
-          // anchor each face-up above its face-down card’s transform offsets
-          left: i * 96 + i * 3,
-          top: -18 + i * 2,
-          transform: `rotate(${-i * 2}deg)`,
-        }}
-      >
-        <CardFace
-          card={c}
-          selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
-          onClick={isYourTurn ? () => toggleSelectFrom("faceUp", c) : undefined}
-        />
-      </div>
-    );
-  })}
-</div>
-
-
-                            </div>
-                          </div>
-
-                          {/* Hand bigger */}
-                          <div style={{ flex: 1 }}>
-                            <div style={styles.small}>Your hand</div>
-
-                            <div style={styles.yourHandBig}>
-                              {(you?.hand ?? []).map((c) => (
-                                <CardFace
-                                  key={c.id}
-                                  card={c}
-                                  selected={
-                                    selectedSource === "hand" && selectedIds.includes(c.id)
-                                  }
-                                  onClick={
-                                    isYourTurn ? () => toggleSelectFrom("hand", c) : undefined
-                                  }
-                                />
-                              ))}
-                              {!you?.hand?.length && <div style={styles.small}>Hand empty</div>}
-                            </div>
-
-                            <div style={styles.actionsRowSingle}>
-                              <button
-                                style={{
-                                  ...styles.primaryBtn,
-                                  opacity: isYourTurn ? 1 : 0.5,
-                                  width: "100%",
-                                }}
-                                disabled={!isYourTurn}
-                                onClick={playSelected}
-                              >
-                                Play Selected
-                              </button>
-
-                              <button
-                                style={{
-                                  ...styles.secondaryBtn,
-                                  opacity: isYourTurn ? 1 : 0.5,
-                                  width: "100%",
-                                }}
-                                disabled={!isYourTurn}
-                                onClick={pickupPile}
-                              >
-                                Pick Up Pile
-                              </button>
-                            </div>
-
-                            <div style={styles.hint}>
-                              Rules: 2/3/10 magic; 7 = next must go lower; 8 = skip; burn on 10
-                              or 4-of-a-kind ignoring 3s (burn = play again).
-                              <br />
-                              Note: opponents’ hands are hidden; only face-up + face-down piles are
-                              visible.
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
                   </>
                 )}
               </>
