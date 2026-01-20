@@ -543,7 +543,7 @@ export default function App() {
   if (!c) return null;
 
   return (
-    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -18 }}>
+    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -6 }}>
       <CardFace card={c} />
     </div>
   );
@@ -620,7 +620,7 @@ export default function App() {
   if (!c) return null;
 
   return (
-    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -18 }}>
+    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -6 }}>
       <CardFace
         card={c}
         selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
