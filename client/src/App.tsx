@@ -527,36 +527,28 @@ export default function App() {
         {/* Face-down base + Face-up aligned 1:1 */}
         <div style={styles.stackWrap}>
           {/* face-down base */}
-          <div style={styles.stackDownRow}>
+          <div style={styles.slotRow}>
             {Array.from({ length: p.faceDownCount }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  transform: `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
-                }}
-              >
-                <CardBack />
-              </div>
-            ))}
+  <div key={i} style={styles.slot}>
+    <CardBack />
+  </div>
+))}
+
           </div>
 
           {/* face-up overlay */}
           <div style={styles.stackUpLayer}>
-            {p.faceUp
-              .slice(0, p.faceDownCount)
-              .map((c, i) => (
-                <div
-                  key={c.id}
-                  style={{
-                    position: "absolute",
-                    left: i * 96 + i * 3,
-                    top: -18 + i * 2,
-                    transform: `rotate(${-i * 2}deg)`,
-                  }}
-                >
-                  <CardFace card={c} />
-                </div>
-              ))}
+            {Array.from({ length: p.faceDownCount }).map((_, i) => {
+  const c = p.faceUp[i];
+  if (!c) return null;
+
+  return (
+    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -18 }}>
+      <CardFace card={c} />
+    </div>
+  );
+})}
+
           </div>
         </div>
 
@@ -608,46 +600,36 @@ export default function App() {
 
         <div style={styles.stackWrap}>
           {/* face-down base */}
-          <div style={styles.stackDownRow}>
+          <div style={styles.slotRow}>
+
             {Array.from({ length: you?.faceDown?.length ?? 0 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  transform:
-                    selectedSource === "faceDown" && selectedFaceDownIndex === i
-                      ? `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg) translateY(-8px)`
-                      : `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
-                }}
-              >
-                <CardBack
-                  label={`${i + 1}`}
-                  onClick={isYourTurn ? () => selectFaceDown(i) : undefined}
-                />
-              </div>
-            ))}
+  <div key={i} style={styles.slot}>
+    <CardBack
+      label={`${i + 1}`}
+      onClick={isYourTurn ? () => selectFaceDown(i) : undefined}
+    />
+  </div>
+))}
+
           </div>
 
           {/* face-up overlay */}
           <div style={styles.stackUpLayer}>
-            {(you?.faceUp ?? [])
-              .slice(0, you?.faceDown?.length ?? 0)
-              .map((c, i) => (
-                <div
-                  key={c.id}
-                  style={{
-                    position: "absolute",
-                    left: i * 96 + i * 3,
-                    top: -18 + i * 2,
-                    transform: `rotate(${-i * 2}deg)`,
-                  }}
-                >
-                  <CardFace
-                    card={c}
-                    selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
-                    onClick={isYourTurn ? () => toggleSelectFrom("faceUp", c) : undefined}
-                  />
-                </div>
-              ))}
+            {Array.from({ length: you?.faceDown?.length ?? 0 }).map((_, i) => {
+  const c = (you?.faceUp ?? [])[i];
+  if (!c) return null;
+
+  return (
+    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -18 }}>
+      <CardFace
+        card={c}
+        selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
+        onClick={isYourTurn ? () => toggleSelectFrom("faceUp", c) : undefined}
+      />
+    </div>
+  );
+})}
+
           </div>
         </div>
       </div>
@@ -881,28 +863,26 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   // --- New seamless table layout styles ---
-  tableFelt: {
-    marginTop: 12,
-    height: 680,
-    borderRadius: 22,
-    border: "1px solid rgba(255,255,255,0.10)",
-    background:
-      "radial-gradient(1200px 600px at 50% 20%, rgba(34,197,94,0.20), rgba(0,0,0,0) 60%), linear-gradient(180deg, rgba(16,185,129,0.08), rgba(0,0,0,0))",
-    position: "relative",
-    overflow: "hidden",
-    padding: 14,
-  },
+ tableFelt: {
+  marginTop: 12,
+  borderRadius: 22,
+  border: "1px solid rgba(255,255,255,0.10)",
+  background:
+    "radial-gradient(1200px 600px at 50% 20%, rgba(34,197,94,0.20), rgba(0,0,0,0) 60%), linear-gradient(180deg, rgba(16,185,129,0.08), rgba(0,0,0,0))",
+  padding: 14,
+  display: "grid",
+  gridTemplateRows: "auto auto auto",
+  gap: 12,
+},
+
 
   oppTopRow: {
-    position: "absolute",
-    top: 14,
-    left: 14,
-    right: 14,
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: 12,
-    alignItems: "start",
-  },
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+  gap: 12,
+  alignItems: "start",
+},
+
 
   seatBox: {
     background: "rgba(0,0,0,0.20)",
@@ -948,16 +928,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   centerPileFloating: {
-    position: "absolute",
-    left: "50%",
-    top: "50%",
-    transform: "translate(-50%, -50%)",
-    width: "min(640px, 92%)",
-    background: "rgba(0,0,0,0.20)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 18,
-    padding: 12,
-  },
+  background: "rgba(0,0,0,0.20)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: 18,
+  padding: 12,
+},
+
 
   pileRow: {
     display: "flex",
@@ -967,15 +943,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   youSeat: {
-    position: "absolute",
-    left: 14,
-    right: 14,
-    bottom: 14,
-    background: "rgba(0,0,0,0.24)",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 20,
-    padding: 12,
-  },
+  background: "rgba(0,0,0,0.24)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 20,
+  padding: 12,
+},
+
 
   youHeader: {
     display: "flex",
@@ -1025,4 +998,17 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
     opacity: 0.95,
   },
+  slotRow: {
+  display: "flex",
+  gap: 12,
+  alignItems: "center",
+  position: "relative",
+  height: 150,
+},
+slot: {
+  width: 84,
+  height: 118,
+},
+
+
 };
