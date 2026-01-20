@@ -35,10 +35,9 @@ type GamePublic = {
     faceDownCount: number;
     faceUp: Card[];
   }>;
-    winnerId: string | null;
+  winnerId: string | null;
   loserId: string | null;
   finished: string[];
-
 };
 
 function suitColor(s: string) {
@@ -122,8 +121,12 @@ export default function App() {
 
   // selection state
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [selectedSource, setSelectedSource] = useState<"hand" | "faceUp" | "faceDown">("hand");
-  const [selectedFaceDownIndex, setSelectedFaceDownIndex] = useState<number | null>(null);
+  const [selectedSource, setSelectedSource] = useState<
+    "hand" | "faceUp" | "faceDown"
+  >("hand");
+  const [selectedFaceDownIndex, setSelectedFaceDownIndex] = useState<
+    number | null
+  >(null);
 
   // setup selection
   const [picked, setPicked] = useState<string[]>([]);
@@ -233,9 +236,13 @@ export default function App() {
 
   function lockInFaceUp() {
     if (!room) return;
-    socket.emit("setup:setFaceUp", { code: room.code, chosenCardIds: picked }, (res: any) => {
-      if (!res?.ok) alert(res?.error || "Failed to lock in");
-    });
+    socket.emit(
+      "setup:setFaceUp",
+      { code: room.code, chosenCardIds: picked },
+      (res: any) => {
+        if (!res?.ok) alert(res?.error || "Failed to lock in");
+      }
+    );
   }
 
   // For hand/faceUp multi-select: enforce same rank
@@ -244,18 +251,13 @@ export default function App() {
     setSelectedFaceDownIndex(null);
 
     setSelectedIds((prev) => {
-      // if empty -> select
       if (prev.length === 0) return [card.id];
-
-      // if already selected -> unselect
       if (prev.includes(card.id)) return prev.filter((x) => x !== card.id);
 
-      // enforce same rank
-      const allCards =
-        source === "hand" ? (you?.hand ?? []) : (you?.faceUp ?? []);
+      const allCards = source === "hand" ? you?.hand ?? [] : you?.faceUp ?? [];
       const first = allCards.find((c) => c.id === prev[0]);
       if (!first) return [card.id];
-      if (card.r !== first.r) return prev; // ignore
+      if (card.r !== first.r) return prev;
       return [...prev, card.id];
     });
   }
@@ -440,7 +442,9 @@ export default function App() {
                   {room.players.map((p) => (
                     <div key={p.id} style={styles.playerRow}>
                       <div style={{ fontWeight: 800 }}>{p.name}</div>
-                      <div style={styles.small}>{p.id === room.hostSocketId ? "Host" : ""}</div>
+                      <div style={styles.small}>
+                        {p.id === room.hostSocketId ? "Host" : ""}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -459,184 +463,262 @@ export default function App() {
             ) : (
               <>
                 {/* PLAY TABLE */}
-{room.phase === "ended" && gamePublic ? (
-  <div style={styles.endBox}>
-    <div style={styles.endTitle}>
-      {yourId === gamePublic.winnerId
-        ? "🏆 You Win!"
-        : yourId === gamePublic.loserId
-        ? "💀 You Lose!"
-        : "✅ Game Over"}
-    </div>
+                {room.phase === "ended" && gamePublic ? (
+                  <div style={styles.endBox}>
+                    <div style={styles.endTitle}>
+                      {yourId === gamePublic.winnerId
+                        ? "🏆 You Win!"
+                        : yourId === gamePublic.loserId
+                        ? "💀 You Lose!"
+                        : "✅ Game Over"}
+                    </div>
 
-    <div style={styles.endText}>
-      <div>
-        <b>Winner:</b>{" "}
-        {gamePublic.players.find((p) => p.id === gamePublic.winnerId)?.name ?? "?"}
-      </div>
-      <div>
-        <b>Loser (Shithead):</b>{" "}
-        {gamePublic.players.find((p) => p.id === gamePublic.loserId)?.name ?? "?"}
-      </div>
-    </div>
-
-    <div style={styles.hint}>
-      The game has ended. Leave to return to the lobby.
-    </div>
-  </div>
-) : (
-  <>
-    <div style={styles.sectionTitle}>Table</div>
-
-    <div style={styles.tableTop}>
-      <div style={styles.pill}>
-        Party: <b>{room.code}</b>
-      </div>
-      <div style={styles.pill}>
-        Turn:{" "}
-        <b>
-          {gamePublic?.players.find(
-            (p) => p.id === gamePublic?.currentPlayerId
-          )?.name ?? "?"}
-        </b>
-      </div>
-      <div style={styles.pill}>
-        Top: <b>{gamePublic?.effectiveTop ?? "—"}</b>
-      </div>
-      <div style={styles.pill}>
-        Deck: <b>{gamePublic?.deckCount ?? 0}</b>
-      </div>
-      <div style={styles.pill}>
-        Pile: <b>{gamePublic?.pileCount ?? 0}</b>
-      </div>
-    </div>
-
-    {/* KEEP THE REST OF YOUR TABLE / HAND / BUTTON UI BELOW THIS */}
-  </>
-)}
-
-                <div style={styles.opponentsRow}>
-                  {opponents.map((p) => (
-                    <div key={p.id} style={styles.oppBox}>
-                      <div style={{ fontWeight: 900, marginBottom: 8 }}>
-                        {p.name} {gamePublic?.currentPlayerId === p.id ? "• TURN" : ""}
+                    <div style={styles.endText}>
+                      <div>
+                        <b>Winner:</b>{" "}
+                        {gamePublic.players.find((p) => p.id === gamePublic.winnerId)?.name ??
+                          "?"}
                       </div>
-
-                      <div style={styles.oppInfo}>
-                        <div style={styles.small}>Hand: {p.handCount}</div>
+                      <div>
+                        <b>Shithead:</b>{" "}
+                        {gamePublic.players.find((p) => p.id === gamePublic.loserId)?.name ??
+                          "?"}
                       </div>
+                    </div>
 
-                      <div style={styles.small}>(Face-up)</div>
-                      <div style={styles.cardsRow}>
-                        {p.faceUp.map((c) => (
-                          <CardFace key={c.id} card={c} />
+                    <div style={styles.hint}>The game has ended. Leave to return to the lobby.</div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={styles.sectionTitle}>Table</div>
+
+                    <div style={styles.tableTop}>
+                      <div style={styles.pill}>
+                        Party: <b>{room.code}</b>
+                      </div>
+                      <div style={styles.pill}>
+                        Turn:{" "}
+                        <b>
+                          {gamePublic?.players.find(
+                            (p) => p.id === gamePublic?.currentPlayerId
+                          )?.name ?? "?"}
+                        </b>
+                      </div>
+                      <div style={styles.pill}>
+                        Top: <b>{gamePublic?.effectiveTop ?? "—"}</b>
+                      </div>
+                      <div style={styles.pill}>
+                        Deck: <b>{gamePublic?.deckCount ?? 0}</b>
+                      </div>
+                      <div style={styles.pill}>
+                        Pile: <b>{gamePublic?.pileCount ?? 0}</b>
+                      </div>
+                    </div>
+
+                    <div style={styles.tableFelt}>
+                      {/* Opponents */}
+                      <div style={styles.oppTopRow}>
+                        {opponents.map((p) => (
+                          <div key={p.id} style={styles.seatBox}>
+                            <div style={styles.seatName}>
+                              {p.name} {gamePublic?.currentPlayerId === p.id ? "• TURN" : ""}
+                            </div>
+
+                            {/* Face-down base */}
+                            <div style={styles.stackWrap}>
+                              <div style={styles.stackDownRow}>
+                                {Array.from({ length: p.faceDownCount }).map((_, i) => (
+                                  <div
+                                    key={i}
+                                    style={{
+                                      transform: `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
+                                    }}
+                                  >
+                                    <CardBack />
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Face-up overlay */}
+                              <div style={styles.stackUpLayer}>
+                                {p.faceUp.map((c, i) => (
+                                  <div
+                                    key={c.id}
+                                    style={{
+                                      position: "absolute",
+                                      left: 10 + i * 6,
+                                      top: -10 - i * 3,
+                                      transform: `rotate(${i * 2}deg)`,
+                                    }}
+                                  >
+                                    <CardFace card={c} />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Hand backs */}
+                            <div style={styles.handBackRow}>
+                              {Array.from({ length: Math.min(6, p.handCount) }).map((_, i) => (
+                                <div
+                                  key={i}
+                                  style={{ transform: `rotate(${(i - 2.5) * 4}deg)` }}
+                                >
+                                  <CardBack />
+                                </div>
+                              ))}
+                              {p.handCount > 6 && (
+                                <div style={{ marginLeft: 6, fontWeight: 900, opacity: 0.85 }}>
+                                  +{p.handCount - 6}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         ))}
                       </div>
 
-                      <div style={{ height: 8 }} />
+                      {/* Centre pile */}
+                      <div style={styles.centerPileFloating}>
+                        <div style={{ fontWeight: 1000, marginBottom: 8 }}>Pile</div>
+                        <div style={styles.pileRow}>
+                          {gamePublic?.pile?.slice(-8).map((c, idx) => (
+                            <div
+                              key={c.id}
+                              style={{ transform: `rotate(${(idx - 3) * 2}deg)` }}
+                            >
+                              <CardFace card={c} />
+                            </div>
+                          ))}
+                          {!gamePublic?.pile?.length && <div style={styles.small}>Empty</div>}
+                        </div>
+                      </div>
 
-                      <div style={styles.small}>(Face-down)</div>
-                      <div style={styles.cardsRow}>
-                        {Array.from({ length: p.faceDownCount }).map((_, i) => (
-                          <CardBack key={i} />
-                        ))}
+                      {/* You */}
+                      <div style={styles.youSeat}>
+                        <div style={styles.youHeader}>
+                          <div style={{ fontWeight: 1000 }}>
+                            You ({yourNameInRoom}) {isYourTurn ? "• YOUR TURN" : ""}
+                          </div>
+                          <div style={{ opacity: 0.85, fontWeight: 800, fontSize: 12 }}>
+                            Deck empty: Hand → Face-up → Face-down
+                          </div>
+                        </div>
+
+                        <div style={styles.youLayout}>
+                          {/* Table stack */}
+                          <div>
+                            <div style={styles.small}>Your table cards</div>
+
+                            <div style={styles.stackWrap}>
+                              {/* face-down base */}
+                              <div style={styles.stackDownRow}>
+                                {Array.from({ length: you?.faceDown?.length ?? 0 }).map(
+                                  (_, i) => (
+                                    <div
+                                      key={i}
+                                      style={{
+                                        transform:
+                                          selectedSource === "faceDown" &&
+                                          selectedFaceDownIndex === i
+                                            ? `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg) translateY(-8px)`
+                                            : `translate(${i * 3}px, ${i * 2}px) rotate(${-i * 2}deg)`,
+                                      }}
+                                    >
+                                      <CardBack
+                                        label={`${i + 1}`}
+                                        onClick={isYourTurn ? () => selectFaceDown(i) : undefined}
+                                      />
+                                    </div>
+                                  )
+                                )}
+                              </div>
+
+                              {/* face-up overlay */}
+                              <div style={styles.stackUpLayer}>
+                                {(you?.faceUp ?? []).map((c, i) => (
+                                  <div
+                                    key={c.id}
+                                    style={{
+                                      position: "absolute",
+                                      left: 10 + i * 6,
+                                      top: -10 - i * 3,
+                                      transform: `rotate(${i * 2}deg)`,
+                                    }}
+                                  >
+                                    <CardFace
+                                      card={c}
+                                      selected={
+                                        selectedSource === "faceUp" && selectedIds.includes(c.id)
+                                      }
+                                      onClick={
+                                        isYourTurn ? () => toggleSelectFrom("faceUp", c) : undefined
+                                      }
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Hand bigger */}
+                          <div style={{ flex: 1 }}>
+                            <div style={styles.small}>Your hand</div>
+
+                            <div style={styles.yourHandBig}>
+                              {(you?.hand ?? []).map((c) => (
+                                <CardFace
+                                  key={c.id}
+                                  card={c}
+                                  selected={
+                                    selectedSource === "hand" && selectedIds.includes(c.id)
+                                  }
+                                  onClick={
+                                    isYourTurn ? () => toggleSelectFrom("hand", c) : undefined
+                                  }
+                                />
+                              ))}
+                              {!you?.hand?.length && <div style={styles.small}>Hand empty</div>}
+                            </div>
+
+                            <div style={styles.actionsRowSingle}>
+                              <button
+                                style={{
+                                  ...styles.primaryBtn,
+                                  opacity: isYourTurn ? 1 : 0.5,
+                                  width: "100%",
+                                }}
+                                disabled={!isYourTurn}
+                                onClick={playSelected}
+                              >
+                                Play Selected
+                              </button>
+
+                              <button
+                                style={{
+                                  ...styles.secondaryBtn,
+                                  opacity: isYourTurn ? 1 : 0.5,
+                                  width: "100%",
+                                }}
+                                disabled={!isYourTurn}
+                                onClick={pickupPile}
+                              >
+                                Pick Up Pile
+                              </button>
+                            </div>
+
+                            <div style={styles.hint}>
+                              Rules: 2/3/10 magic; 7 = next must go lower; 8 = skip; burn on 10
+                              or 4-of-a-kind ignoring 3s (burn = play again).
+                              <br />
+                              Note: opponents’ hands are hidden; only face-up + face-down piles are
+                              visible.
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                <div style={styles.centerArea}>
-                  <div style={styles.panel}>
-                    <div style={styles.panelTitle}>Pile</div>
-                    <div style={styles.cardsRow}>
-                      {gamePublic?.pile?.slice(-6).map((c) => (
-                        <CardFace key={c.id} card={c} />
-                      ))}
-                      {!gamePublic?.pile?.length && <div style={styles.small}>Empty</div>}
-                    </div>
-                  </div>
-
-                  <div style={styles.panel}>
-                    <div style={styles.panelTitle}>Your table cards</div>
-
-                    <div style={styles.small}>Face-up (must be used before face-down)</div>
-                    <div style={styles.cardsRow}>
-                      {(you?.faceUp ?? []).map((c) => (
-                        <CardFace
-                          key={c.id}
-                          card={c}
-                          selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
-                          onClick={() => toggleSelectFrom("faceUp", c)}
-                        />
-                      ))}
-                      {!you?.faceUp?.length && <div style={styles.small}>None</div>}
-                    </div>
-
-                    <div style={{ height: 10 }} />
-
-                    <div style={styles.small}>Face-down (last)</div>
-                    <div style={styles.cardsRow}>
-                      {Array.from({ length: you?.faceDown?.length ?? 0 }).map((_, i) => (
-                        <CardBack
-                          key={i}
-                          label={`${i + 1}`}
-                          onClick={() => selectFaceDown(i)}
-                        />
-                      ))}
-                      {!you?.faceDown?.length && <div style={styles.small}>None</div>}
-                    </div>
-                  </div>
-                </div>
-
-                <div style={styles.panel}>
-                  <div style={styles.panelTitle}>
-                    Your hand {isYourTurn ? "• YOUR TURN" : ""}
-                  </div>
-                  <div style={styles.cardsRow}>
-                    {(you?.hand ?? []).map((c) => (
-                      <CardFace
-                        key={c.id}
-                        card={c}
-                        selected={selectedSource === "hand" && selectedIds.includes(c.id)}
-                        onClick={() => toggleSelectFrom("hand", c)}
-                      />
-                    ))}
-                    {!you?.hand?.length && <div style={styles.small}>Hand empty</div>}
-                  </div>
-
-                  <div style={styles.actionsRow}>
-                    <button
-                      style={{
-                        ...styles.primaryBtn,
-                        opacity: isYourTurn ? 1 : 0.5,
-                        width: "100%",
-                      }}
-                      disabled={!isYourTurn}
-                      onClick={playSelected}
-                    >
-                      Play Selected
-                    </button>
-
-                    <button
-                      style={{
-                        ...styles.secondaryBtn,
-                        opacity: isYourTurn ? 1 : 0.5,
-                        width: "100%",
-                      }}
-                      disabled={!isYourTurn}
-                      onClick={pickupPile}
-                    >
-                      Pick Up Pile
-                    </button>
-                  </div>
-
-                  <div style={styles.hint}>
-                    Rules implemented: 2/3/10 magic; 7 = next must go lower; 8 = skip (steps = 1 + #8s);
-                    burn on 10 or 4-of-a-kind ignoring 3s (burn = play again).
-                    <br />
-                    Enforcement: while deck exists you play from hand; after deck empty you play hand → face-up → face-down.
-                  </div>
-                </div>
+                  </>
+                )}
               </>
             )}
           </>
@@ -762,34 +844,6 @@ const styles: Record<string, React.CSSProperties> = {
 
   tableTop: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 },
 
-  opponentsRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: 12,
-    marginTop: 12,
-  },
-  oppBox: {
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: 16,
-    padding: 12,
-  },
-  oppInfo: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 8 },
-
-  centerArea: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-    marginTop: 12,
-  },
-
-  actionsRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 10,
-    marginTop: 12,
-  },
-
   // --- Real card styles ---
   realCard: {
     position: "relative",
@@ -846,22 +900,147 @@ const styles: Record<string, React.CSSProperties> = {
     textShadow: "0 2px 10px rgba(0,0,0,0.35)",
   },
 
-  endBox: {
-  marginTop: 16,
-  padding: 16,
-  borderRadius: 16,
-  background: "rgba(255,255,255,0.04)",
-  border: "1px solid rgba(255,255,255,0.10)",
-},
-endTitle: {
-  fontSize: 34,
-  fontWeight: 1000,
-},
-endText: {
-  marginTop: 12,
-  fontSize: 18,
-  lineHeight: 1.5,
-  opacity: 0.95,
-},
+  // --- New seamless table layout styles ---
+  tableFelt: {
+    marginTop: 12,
+    height: 680,
+    borderRadius: 22,
+    border: "1px solid rgba(255,255,255,0.10)",
+    background:
+      "radial-gradient(1200px 600px at 50% 20%, rgba(34,197,94,0.20), rgba(0,0,0,0) 60%), linear-gradient(180deg, rgba(16,185,129,0.08), rgba(0,0,0,0))",
+    position: "relative",
+    overflow: "hidden",
+    padding: 14,
+  },
 
+  oppTopRow: {
+    position: "absolute",
+    top: 14,
+    left: 14,
+    right: 14,
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: 12,
+    alignItems: "start",
+  },
+
+  seatBox: {
+    background: "rgba(0,0,0,0.20)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    borderRadius: 16,
+    padding: 10,
+  },
+
+  seatName: {
+    fontWeight: 1000,
+    fontSize: 13,
+    marginBottom: 10,
+    opacity: 0.95,
+  },
+
+  stackWrap: {
+    position: "relative",
+    height: 150,
+  },
+
+  stackDownRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+  },
+
+  stackUpLayer: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    width: "100%",
+    height: "100%",
+    pointerEvents: "auto",
+  },
+
+  handBackRow: {
+    marginTop: 10,
+    display: "flex",
+    gap: 6,
+    alignItems: "center",
+  },
+
+  centerPileFloating: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%, -50%)",
+    width: "min(640px, 92%)",
+    background: "rgba(0,0,0,0.20)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    borderRadius: 18,
+    padding: 12,
+  },
+
+  pileRow: {
+    display: "flex",
+    gap: 10,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+
+  youSeat: {
+    position: "absolute",
+    left: 14,
+    right: 14,
+    bottom: 14,
+    background: "rgba(0,0,0,0.24)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 20,
+    padding: 12,
+  },
+
+  youHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 10,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
+
+  youLayout: {
+    display: "flex",
+    gap: 14,
+    alignItems: "flex-end",
+  },
+
+  yourHandBig: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    alignItems: "center",
+    transform: "scale(1.12)",
+    transformOrigin: "left bottom",
+    paddingBottom: 6,
+  },
+
+  actionsRowSingle: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+    marginTop: 12,
+  },
+
+  endBox: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.10)",
+  },
+  endTitle: {
+    fontSize: 34,
+    fontWeight: 1000,
+  },
+  endText: {
+    marginTop: 12,
+    fontSize: 18,
+    lineHeight: 1.5,
+    opacity: 0.95,
+  },
 };
