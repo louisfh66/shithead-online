@@ -594,7 +594,7 @@ export default function App() {
                       </div>
 
                       {/* You */}
-                      <div style={styles.youSeat}>
+                      <div style={styles.tableFelt}>
                         <div style={styles.youHeader}>
                           <div style={{ fontWeight: 1000 }}>
                             You ({yourNameInRoom}) {isYourTurn ? "• YOUR TURN" : ""}
