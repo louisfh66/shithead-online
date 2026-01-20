@@ -919,9 +919,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   stackWrap: {
-    position: "relative",
-    height: 150,
-  },
+  position: "relative",
+  height: 150,
+  overflow: "hidden",
+},
+
 
   stackDownRow: {
     display: "flex",
