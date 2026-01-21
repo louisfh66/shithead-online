@@ -567,7 +567,8 @@ export default function App() {
   if (!c) return null;
 
   return (
-    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -14 }}>
+    <div key={c.id} style={{ ...styles.slot, position: "absolute", pointerEvents: "auto",
+ left: i * 96, top: -14 }}>
       <CardFace card={c} />
     </div>
   );
@@ -627,13 +628,22 @@ export default function App() {
           <div style={styles.slotRow}>
 
             {Array.from({ length: you?.faceDown?.length ?? 0 }).map((_, i) => (
-  <div key={i} style={styles.slot}>
-    <CardBack
-      label={`${i + 1}`}
-      onClick={isYourTurn ? () => selectFaceDown(i) : undefined}
-    />
+  <div
+    key={i}
+    style={{
+      ...styles.slot,
+      transform:
+        selectedSource === "faceDown" && selectedFaceDownIndex === i
+          ? "translateY(-8px)"
+          : "none",
+      cursor: isYourTurn ? "pointer" : "default",
+    }}
+    onClick={isYourTurn ? () => selectFaceDown(i) : undefined}
+  >
+    <CardBack label={`${i + 1}`} />
   </div>
 ))}
+
 
           </div>
 
@@ -644,7 +654,8 @@ export default function App() {
   if (!c) return null;
 
   return (
-    <div key={c.id} style={{ ...styles.slot, position: "absolute", left: i * 96, top: -14 }}>
+    <div key={c.id} style={{ ...styles.slot, position: "absolute", pointerEvents: "auto",
+ left: i * 96, top: -14 }}>
       <CardFace
         card={c}
         selected={selectedSource === "faceUp" && selectedIds.includes(c.id)}
@@ -937,14 +948,12 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
   },
 
-  stackUpLayer: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    width: "100%",
-    height: "100%",
-    pointerEvents: "auto",
-  },
+ stackUpLayer: {
+  position: "absolute",
+  inset: 0,
+  pointerEvents: "none", // IMPORTANT: overlay never steals clicks
+},
+
 
   handBackRow: {
     marginTop: 10,
