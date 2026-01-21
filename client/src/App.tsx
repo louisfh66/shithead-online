@@ -263,28 +263,52 @@ export default function App() {
   }
 
   function selectFaceDown(idx: number) {
-    setSelectedSource("faceDown");
-    setSelectedIds([]);
-    setSelectedFaceDownIndex(idx);
-  }
+  // When selecting a face-down card, force the play source to faceDown
+  setSelectedSource("faceDown");
+  setSelectedIds([]);
+  setSelectedFaceDownIndex(idx);
+}
+
 
   function playSelected() {
-    if (!room) return;
-    if (!isYourTurn) return;
+  if (!room) return;
+  if (!isYourTurn) return;
 
-    const payload: any = { code: room.code, source: selectedSource };
+  // Server requires strict source order when deck is empty:
+  // Hand -> Face-up -> Face-down
+  const mustPlayFaceDown =
+    (you?.hand?.length ?? 0) === 0 && (you?.faceUp?.length ?? 0) === 0 && (you?.faceDown?.length ?? 0) > 0;
 
-    if (selectedSource === "faceDown") {
-      payload.faceDownIndex = selectedFaceDownIndex;
-    } else {
-      payload.cardIds = selectedIds;
+  const mustPlayFaceUp =
+    (you?.hand?.length ?? 0) === 0 && (you?.faceUp?.length ?? 0) > 0;
+
+  // If rules require faceDown/faceUp, force source regardless of UI state.
+  const forcedSource: "hand" | "faceUp" | "faceDown" =
+    mustPlayFaceDown ? "faceDown" : mustPlayFaceUp ? "faceUp" : selectedSource;
+
+  const payload: any = { code: room.code, source: forcedSource };
+
+  if (forcedSource === "faceDown") {
+    // Must have chosen an index
+    if (selectedFaceDownIndex == null) {
+      alert("Click a face-down card first.");
+      return;
     }
-
-    socket.emit("play:cards", payload, (res: any) => {
-      if (!res?.ok) alert(res?.error || "Play failed");
-      resetSelection();
-    });
+    payload.faceDownIndex = selectedFaceDownIndex;
+  } else {
+    if (selectedIds.length === 0) {
+      alert("Select a card first.");
+      return;
+    }
+    payload.cardIds = selectedIds;
   }
+
+  socket.emit("play:cards", payload, (res: any) => {
+    if (!res?.ok) alert(res?.error || "Play failed");
+    resetSelection();
+  });
+}
+
 
   function pickupPile() {
     if (!room) return;
