@@ -493,7 +493,7 @@ export default function App() {
                       {yourId === gamePublic.winnerId
                         ? "🏆 You Win!"
                         : yourId === gamePublic.loserId
-                        ? "💀 You Lose!"
+                        ? "💩 Shithead!"
                         : "✅ Game Over"}
                     </div>
 
