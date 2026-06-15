@@ -16,7 +16,7 @@ function canPlay(card, pile, mustPlayLower) {
   const top = effectiveTopCard(pile);
   if (!top) return true;
   const val = RANK_VALUE[card.rank];
-  if (mustPlayLower) return val <= 7;
+  if (mustPlayLower) return val < 7;
   return val >= RANK_VALUE[top.rank];
 }
 
@@ -159,8 +159,22 @@ export default function Game({ gameState }) {
   const winW = useWindowWidth();
   const isDesktop = winW >= 900;
 
+  const [timeLeft, setTimeLeft] = useState(20);
+
   if (!gameState) return null;
-  const { pile, deckCount, currentTurn, mustPlayLower, players, myHand, myFaceUp, myFaceDown, myId, log } = gameState;
+  const { pile, deckCount, currentTurn, mustPlayLower, players, myHand, myFaceUp, myFaceDown, myId, log, turnDeadline } = gameState;
+
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useEffect(() => {
+    if (!turnDeadline) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
+      setTimeLeft(remaining);
+    };
+    tick();
+    const interval = setInterval(tick, 250);
+    return () => clearInterval(interval);
+  }, [turnDeadline]);
 
   const myIdx = players.findIndex(p => p.id === myId);
   const isMyTurn = currentTurn === myIdx;
@@ -240,6 +254,16 @@ export default function Game({ gameState }) {
           {isMyTurn ? "⚡ Your turn" : `${currentPlayer?.name}'s turn`}
         </div>
         <div style={{ fontSize:12, color:"#3a5a4a" }}>🂠 {deckCount}</div>
+      </div>
+
+      {/* Turn timer bar */}
+      <div style={{ height:3, background:'rgba(255,255,255,0.06)', width:'100%' }}>
+        <div style={{
+          height:'100%',
+          width: turnDeadline ? (timeLeft/20*100)+'%' : '0%',
+          background: timeLeft > 10 ? '#C9A84C' : timeLeft > 5 ? '#E74C3C' : '#ff2222',
+          transition:'width 0.25s linear, background 0.3s',
+        }}/>
       </div>
 
       {/* Main layout: desktop = sidebar opponents + centre table, mobile = stacked */}

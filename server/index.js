@@ -13,8 +13,10 @@ const io = new Server(server, {
   }
 });
 
-// ─── UTILS ────────────────────────────────────────────────────
+const TURN_TIMEOUT = 20000;  // 20 seconds
+const RECONNECT_TIMEOUT = 30000; // 30 seconds
 
+// ─── UTILS ────────────────────────────────────────────────────
 function generateCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let code = "";
@@ -23,7 +25,7 @@ function generateCode() {
 }
 
 function makeDeck() {
-  const suits = ["♠","♥","♦","♣"];
+  const suits = ["\u2660","\u2665","\u2666","\u2663"];
   const ranks = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
   const deck = [];
   for (const suit of suits)
@@ -78,7 +80,6 @@ function hasNoCards(player) {
 }
 
 // ─── GAME STATE ───────────────────────────────────────────────
-// rooms: { [code]: { players, deck, pile, currentTurn, phase, mustPlayLower, hostId, burnedPile, finishOrder, shitheadCounts } }
 const rooms = {};
 
 function getRoom(code) { return rooms[code]; }
@@ -87,23 +88,25 @@ function broadcastState(code) {
   const room = getRoom(code);
   if (!room) return;
 
-  // Send each player their own private state
+  const now = Date.now();
+  const turnDeadline = room.turnDeadline || null;
+
   room.players.forEach(player => {
     const socket = io.sockets.sockets.get(player.id);
     if (!socket) return;
 
-    // Build state: hide other players' hand cards and facedown cards
     const playersPublic = room.players.map(p => ({
       id: p.id,
       name: p.name,
       handCount: p.hand.length,
       faceUp: p.faceUp,
-      faceDown: p.faceDown.map(() => ({ hidden: true })), // count only, no card info
+      faceDown: p.faceDown.map(() => ({ hidden: true })),
       faceDownCount: p.faceDown.length,
       finished: p.finished,
       finishPosition: p.finishPosition,
       shitheadCount: p.shitheadCount || 0,
       isHost: p.id === room.hostId,
+      disconnected: p.disconnected || false,
     }));
 
     socket.emit("gameState", {
@@ -122,12 +125,111 @@ function broadcastState(code) {
       finishOrder: room.finishOrder || [],
       shitheadId: room.shitheadId || null,
       code,
+      turnDeadline,
     });
   });
 }
 
 function addLog(room, msg) {
   room.log = [msg, ...(room.log || [])].slice(0, 20);
+}
+
+// ─── TURN TIMER ───────────────────────────────────────────────
+function clearTurnTimer(room) {
+  if (room.turnTimer) {
+    clearTimeout(room.turnTimer);
+    room.turnTimer = null;
+    room.turnDeadline = null;
+  }
+}
+
+function startTurnTimer(code) {
+  const room = getRoom(code);
+  if (!room || room.phase !== "game") return;
+
+  clearTurnTimer(room);
+
+  room.turnDeadline = Date.now() + TURN_TIMEOUT;
+  room.turnTimer = setTimeout(() => {
+    const r = getRoom(code);
+    if (!r || r.phase !== "game") return;
+
+    const player = r.players[r.currentTurn];
+    if (!player || player.finished) return;
+
+    // Force pick up pile, or just advance turn if pile empty
+    if (r.pile.length > 0) {
+      player.hand = [...player.hand, ...r.pile];
+      r.pile = [];
+      r.mustPlayLower = false;
+      addLog(r, player.name + " ran out of time — picks up the pile.");
+    } else {
+      addLog(r, player.name + " ran out of time — turn skipped.");
+    }
+
+    r.currentTurn = nextAlive(r, r.currentTurn, 1);
+    broadcastState(code);
+    startTurnTimer(code);
+  }, TURN_TIMEOUT);
+}
+
+// ─── RECONNECT ────────────────────────────────────────────────
+function handleDisconnectDuringGame(room, code, socketId) {
+  const player = room.players.find(p => p.id === socketId);
+  if (!player) return;
+
+  player.disconnected = true;
+  addLog(room, player.name + " disconnected. 30s to reconnect...");
+  broadcastState(code);
+
+  // If it was their turn, pause the turn timer
+  const playerIdx = room.players.findIndex(p => p.id === socketId);
+  if (playerIdx === room.currentTurn) {
+    clearTurnTimer(room);
+  }
+
+  // Start reconnect countdown
+  player.reconnectTimer = setTimeout(() => {
+    const r = getRoom(code);
+    if (!r) return;
+    const p = r.players.find(pl => pl.id === socketId);
+    if (!p || !p.disconnected) return;
+
+    // Time's up — dump their cards to pile then pick up
+    addLog(r, p.name + " failed to reconnect — cards added to pile.");
+
+    // Add their cards to pile
+    const allCards = [...p.hand, ...p.faceUp, ...p.faceDown];
+    r.pile = [...r.pile, ...allCards];
+    p.hand = [];
+    p.faceUp = [];
+    p.faceDown = [];
+    p.finished = true;
+    p.finishPosition = r.finishOrder.length + 1;
+    r.finishOrder.push(p.id);
+
+    // Check if game over
+    const active = r.players.filter(pl => !pl.finished);
+    if (active.length === 1) {
+      const shithead = active[0];
+      shithead.shitheadCount = (shithead.shitheadCount || 0) + 1;
+      r.shitheadId = shithead.id;
+      r.finishOrder.push(shithead.id);
+      r.phase = "results";
+      clearTurnTimer(r);
+      addLog(r, shithead.name + " is the Shithead!");
+      broadcastState(code);
+      return;
+    }
+
+    // If it was their turn, advance
+    if (r.currentTurn === playerIdx) {
+      r.currentTurn = nextAlive(r, playerIdx, 1);
+      startTurnTimer(code);
+    }
+
+    broadcastState(code);
+  }, RECONNECT_TIMEOUT);
 }
 
 // ─── SOCKET.IO ────────────────────────────────────────────────
@@ -146,21 +248,19 @@ io.on("connection", (socket) => {
       players: [{
         id: socket.id,
         name,
-        hand: [],
-        faceUp: [],
-        faceDown: [],
-        finished: false,
-        finishPosition: null,
-        shitheadCount: 0,
-        setupDone: false,
+        hand: [], faceUp: [], faceDown: [],
+        finished: false, finishPosition: null,
+        shitheadCount: 0, setupDone: false,
+        disconnected: false,
       }],
-      deck: [],
-      pile: [],
+      deck: [], pile: [],
       mustPlayLower: false,
       currentTurn: 0,
       log: [],
       finishOrder: [],
       shitheadId: null,
+      turnTimer: null,
+      turnDeadline: null,
     };
 
     socket.join(code);
@@ -177,20 +277,50 @@ io.on("connection", (socket) => {
     if (room.players.length >= 5) { socket.emit("error", "Room is full (max 5 players)."); return; }
 
     room.players.push({
-      id: socket.id,
-      name,
-      hand: [],
-      faceUp: [],
-      faceDown: [],
-      finished: false,
-      finishPosition: null,
-      shitheadCount: 0,
-      setupDone: false,
+      id: socket.id, name,
+      hand: [], faceUp: [], faceDown: [],
+      finished: false, finishPosition: null,
+      shitheadCount: 0, setupDone: false,
+      disconnected: false,
     });
 
     socket.join(code);
     socket.data.code = code;
     socket.emit("joinedParty", { code });
+    broadcastState(code);
+  });
+
+  // ── RECONNECT ─────────────────────────────────────────────
+  socket.on("reconnectPlayer", ({ code, name }) => {
+    const room = getRoom(code);
+    if (!room || room.phase === "lobby") return;
+
+    const player = room.players.find(p => p.name === name && p.disconnected);
+    if (!player) { socket.emit("error", "Could not reconnect."); return; }
+
+    // Cancel reconnect timer
+    if (player.reconnectTimer) {
+      clearTimeout(player.reconnectTimer);
+      player.reconnectTimer = null;
+    }
+
+    const oldId = player.id;
+    player.id = socket.id;
+    player.disconnected = false;
+
+    // Update host if needed
+    if (room.hostId === oldId) room.hostId = socket.id;
+
+    socket.join(code);
+    socket.data.code = code;
+    addLog(room, player.name + " reconnected.");
+
+    // Restart turn timer if it's their turn
+    const playerIdx = room.players.findIndex(p => p.id === socket.id);
+    if (playerIdx === room.currentTurn) {
+      startTurnTimer(code);
+    }
+
     broadcastState(code);
   });
 
@@ -210,8 +340,7 @@ io.on("connection", (socket) => {
     room.finishOrder = [];
     room.shitheadId = null;
 
-    // Deal 9 cards to each player (3 facedown, 6 hand — player picks 3 for faceup)
-    room.players.forEach((p, i) => {
+    room.players.forEach(p => {
       const cards = deck.splice(0, 9);
       p.faceDown = cards.slice(0, 3);
       p.hand = cards.slice(3, 9);
@@ -219,6 +348,7 @@ io.on("connection", (socket) => {
       p.finished = false;
       p.finishPosition = null;
       p.setupDone = false;
+      p.disconnected = false;
     });
 
     addLog(room, "Game started — choose your 3 face-up cards.");
@@ -242,13 +372,15 @@ io.on("connection", (socket) => {
     player.hand = player.hand.filter(c => !cardIds.includes(c.id));
     player.setupDone = true;
 
-    addLog(room, `${player.name} is ready.`);
+    addLog(room, player.name + " is ready.");
 
-    // Check if all players done
     if (room.players.every(p => p.setupDone)) {
       room.phase = "game";
-      room.currentTurn = 0; // host starts
-      addLog(room, `Game begins! ${room.players[0].name} goes first.`);
+      room.currentTurn = 0;
+      addLog(room, "Game begins! " + room.players[0].name + " goes first.");
+      broadcastState(code);
+      startTurnTimer(code);
+      return;
     }
 
     broadcastState(code);
@@ -268,120 +400,101 @@ io.on("connection", (socket) => {
     const cards = cardIds.map(id => player[source].find(c => c.id === id)).filter(Boolean);
 
     if (cards.length === 0) return;
+    if (cards.some(c => c.rank !== cards[0].rank)) { socket.emit("error", "All played cards must be the same rank."); return; }
 
-    // Validate same rank
-    if (cards.some(c => c.rank !== cards[0].rank)) {
-      socket.emit("error", "All played cards must be the same rank.");
-      return;
-    }
-
-    // Validate playable (unless facedown — blind)
     if (source !== "faceDown") {
-      if (!canPlay(cards[0], room.pile, room.mustPlayLower)) {
-        socket.emit("error", "Cannot play that card.");
-        return;
-      }
+      if (!canPlay(cards[0], room.pile, room.mustPlayLower)) { socket.emit("error", "Cannot play that card."); return; }
     }
 
-    // Remove from source
-    player[source] = player[source].filter(c => !cardIds.includes(c.id));
+    clearTurnTimer(room);
 
-    // Add to pile
+    player[source] = player[source].filter(c => !cardIds.includes(c.id));
     room.pile = [...room.pile, ...cards];
 
-    // Draw back up to 3 from deck
     while (player.hand.length < 3 && room.deck.length > 0) {
       player.hand.push(room.deck.shift());
     }
 
     const rank = cards[0].rank;
-    let burned = false;
     let extraTurn = false;
     let skipCount = 0;
-    // Don't reset mustPlayLower yet — recalculate after pile is updated
 
     // Face-down illegal check
     if (source === "faceDown") {
-      const legal = room.pile.length <= cards.length || canPlay(cards[0], room.pile.slice(0, room.pile.length - cards.length), false);
+      const pileBeforePlay = room.pile.slice(0, room.pile.length - cards.length);
+      const legal = pileBeforePlay.length === 0 || canPlay(cards[0], pileBeforePlay, room.mustPlayLower);
       if (!legal) {
-        // Pick up whole pile
         player.hand = [...player.hand, ...room.pile];
         room.pile = [];
         room.mustPlayLower = false;
-        addLog(room, `${player.name} flipped ${cards[0].rank}${cards[0].suit} blind — illegal! Picks up the pile.`);
+        addLog(room, player.name + " flipped " + cards[0].rank + " blind — illegal! Picks up the pile.");
         room.currentTurn = nextAlive(room, playerIdx, 1);
         broadcastState(code);
+        startTurnTimer(code);
         return;
       }
     }
 
     // Special cards
-    if (rank === '10') {
-      burned = true;
+    if (rank === "10") {
       extraTurn = true;
       room.pile = [];
       room.mustPlayLower = false;
-      addLog(room, player.name + ' played 10 — pile burns! Plays again.');
+      addLog(room, player.name + " played 10 — pile burns! Plays again.");
     } else if (checkBurn(room.pile)) {
-      burned = true;
       extraTurn = true;
       room.pile = [];
       room.mustPlayLower = false;
-      addLog(room, 'Four of a kind — auto burn! ' + player.name + ' plays again.');
-    } else if (rank === '8') {
+      addLog(room, "Four of a kind — auto burn! " + player.name + " plays again.");
+    } else if (rank === "8") {
       skipCount = cards.length;
       room.mustPlayLower = false;
-      addLog(room, player.name + ' played ' + cards.length + 'x 8 — skip' + (cards.length > 1 ? 's ' + cards.length + ' players' : 's next player') + '.');
-    } else if (rank === '7') {
+      addLog(room, player.name + " played " + cards.length + "x 8 — skips " + (cards.length > 1 ? cards.length + " players" : "next player") + ".");
+    } else if (rank === "7") {
       room.mustPlayLower = true;
-      addLog(room, player.name + ' played 7 — next must go lower.');
-    } else if (rank === '2') {
+      addLog(room, player.name + " played 7 — next must go lower.");
+    } else if (rank === "2") {
       room.mustPlayLower = false;
-      addLog(room, player.name + ' played 2 — pile reset.');
-    } else if (rank === '3') {
+      addLog(room, player.name + " played 2 — pile reset.");
+    } else if (rank === "3") {
       const effTop = effectiveTopCard(room.pile);
-      room.mustPlayLower = effTop?.rank === '7';
-      addLog(room, player.name + ' played 3 (invisible)' + (room.mustPlayLower ? ' — still on a 7, next must go lower' : '') + '.');
+      room.mustPlayLower = effTop?.rank === "7";
+      addLog(room, player.name + " played 3 (invisible)" + (room.mustPlayLower ? " — still on a 7" : "") + ".");
     } else {
       room.mustPlayLower = false;
-      addLog(room, player.name + ' played ' + cards.map(c => c.rank + c.suit).join(', ') + '.');
+      addLog(room, player.name + " played " + cards.map(c => c.rank + c.suit).join(", ") + ".");
     }
 
-    // If pile was burned, mustPlayLower must be false
     if (room.pile.length === 0) room.mustPlayLower = false;
 
-    // Check if player finished
+    // Check win
     if (hasNoCards(player) && !player.finished) {
       player.finished = true;
       player.finishPosition = room.finishOrder.length + 1;
       room.finishOrder.push(player.id);
-      addLog(room, `✅ ${player.name} is out!`);
+      addLog(room, player.name + " is out!");
     }
 
-    // Check game over (only 1 active player left)
-    const activePlayers = room.players.filter(p => !p.finished);
-    if (activePlayers.length === 1) {
-      const shithead = activePlayers[0];
+    // Check game over
+    const active = room.players.filter(p => !p.finished);
+    if (active.length === 1) {
+      const shithead = active[0];
       shithead.shitheadCount = (shithead.shitheadCount || 0) + 1;
       room.shitheadId = shithead.id;
       room.finishOrder.push(shithead.id);
       room.phase = "results";
-      addLog(room, `💀 ${shithead.name} is the Shithead!`);
+      clearTurnTimer(room);
+      addLog(room, shithead.name + " is the Shithead!");
       broadcastState(code);
       return;
     }
 
-    // Advance turn
-    if (extraTurn) {
-      // Stay on same player (but check they're still active)
-      if (player.finished) {
-        room.currentTurn = nextAlive(room, playerIdx, 1);
-      }
-    } else {
-      room.currentTurn = nextAlive(room, playerIdx, 1 + skipCount);
-    }
+    room.currentTurn = extraTurn
+      ? (player.finished ? nextAlive(room, playerIdx, 1) : playerIdx)
+      : nextAlive(room, playerIdx, 1 + skipCount);
 
     broadcastState(code);
+    startTurnTimer(code);
   });
 
   // ── PICK UP PILE ──────────────────────────────────────────
@@ -394,13 +507,16 @@ io.on("connection", (socket) => {
     if (playerIdx !== room.currentTurn) return;
     if (room.pile.length === 0) return;
 
+    clearTurnTimer(room);
+
     const player = room.players[playerIdx];
     player.hand = [...player.hand, ...room.pile];
     room.pile = [];
     room.mustPlayLower = false;
-    addLog(room, `${player.name} picked up the pile.`);
+    addLog(room, player.name + " picked up the pile.");
     room.currentTurn = nextAlive(room, playerIdx, 1);
     broadcastState(code);
+    startTurnTimer(code);
   });
 
   // ── NEW ROUND ─────────────────────────────────────────────
@@ -410,7 +526,8 @@ io.on("connection", (socket) => {
     if (!room) return;
     if (socket.id !== room.hostId) return;
 
-    // Winner of last round (position 1) starts
+    clearTurnTimer(room);
+
     const lastWinnerId = room.finishOrder[0];
     const starterIdx = room.players.findIndex(p => p.id === lastWinnerId);
 
@@ -430,10 +547,12 @@ io.on("connection", (socket) => {
       p.finished = false;
       p.finishPosition = null;
       p.setupDone = false;
+      p.disconnected = false;
+      if (p.reconnectTimer) { clearTimeout(p.reconnectTimer); p.reconnectTimer = null; }
     });
 
     room.currentTurn = starterIdx >= 0 ? starterIdx : 0;
-    addLog(room, `New round! ${room.players[room.currentTurn].name} will go first.`);
+    addLog(room, "New round! " + room.players[room.currentTurn].name + " goes first.");
     broadcastState(code);
   });
 
@@ -445,26 +564,22 @@ io.on("connection", (socket) => {
     if (!room) return;
 
     const player = room.players.find(p => p.id === socket.id);
-    if (player) addLog(room, `${player.name} disconnected.`);
 
-    // If lobby, remove them
     if (room.phase === "lobby") {
       room.players = room.players.filter(p => p.id !== socket.id);
-      if (room.players.length === 0) {
-        delete rooms[code];
-        return;
-      }
-      // Transfer host if needed
-      if (room.hostId === socket.id) {
-        room.hostId = room.players[0].id;
-      }
+      if (room.players.length === 0) { delete rooms[code]; return; }
+      if (room.hostId === socket.id) room.hostId = room.players[0].id;
+      if (player) addLog(room, player.name + " left the lobby.");
+      broadcastState(code);
+      return;
     }
 
-    broadcastState(code);
+    // In game — start reconnect window
+    if (player) handleDisconnectDuringGame(room, code, socket.id);
   });
 });
 
-// ── HELPER: next alive player index ──────────────────────────
+// ── HELPER ────────────────────────────────────────────────────
 function nextAlive(room, fromIdx, steps) {
   const n = room.players.length;
   let idx = fromIdx;
@@ -472,12 +587,11 @@ function nextAlive(room, fromIdx, steps) {
   while (skipped < steps) {
     idx = (idx + 1) % n;
     if (!room.players[idx].finished) skipped++;
-    // Safety: if all finished somehow, break
     if (skipped > n * 2) break;
   }
   return idx;
 }
 
 // ─── START ────────────────────────────────────────────────────
-const PORT = 3001;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => console.log("Server running on port " + PORT));
