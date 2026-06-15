@@ -156,17 +156,14 @@ function Pile({ pile, w, h }) {
 // ─── MAIN ─────────────────────────────────────────────────────
 export default function Game({ gameState }) {
   const [selectedCards, setSelectedCards] = useState([]);
+  const [timeLeft, setTimeLeft] = useState(20);
   const winW = useWindowWidth();
   const isDesktop = winW >= 900;
 
-  const [timeLeft, setTimeLeft] = useState(20);
+  const turnDeadline = gameState?.turnDeadline || null;
 
-  if (!gameState) return null;
-  const { pile, deckCount, currentTurn, mustPlayLower, players, myHand, myFaceUp, myFaceDown, myId, log, turnDeadline } = gameState;
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    if (!turnDeadline) return;
+    if (!turnDeadline) { setTimeLeft(20); return; }
     const tick = () => {
       const remaining = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
       setTimeLeft(remaining);
@@ -175,6 +172,9 @@ export default function Game({ gameState }) {
     const interval = setInterval(tick, 250);
     return () => clearInterval(interval);
   }, [turnDeadline]);
+
+  if (!gameState) return null;
+  const { pile, deckCount, currentTurn, mustPlayLower, players, myHand, myFaceUp, myFaceDown, myId, log } = gameState;
 
   const myIdx = players.findIndex(p => p.id === myId);
   const isMyTurn = currentTurn === myIdx;

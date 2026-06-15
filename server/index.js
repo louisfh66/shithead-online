@@ -273,7 +273,26 @@ io.on("connection", (socket) => {
   socket.on("joinParty", ({ name, code }) => {
     const room = getRoom(code);
     if (!room) { socket.emit("error", "Room not found."); return; }
-    if (room.phase !== "lobby") { socket.emit("error", "Game already in progress."); return; }
+    // If game in progress, check if reconnect by name
+    if (room.phase !== 'lobby') {
+      const disc = room.players.find(p => p.name === name && p.disconnected);
+      if (disc) {
+        if (disc.reconnectTimer) { clearTimeout(disc.reconnectTimer); disc.reconnectTimer = null; }
+        const oldId = disc.id;
+        disc.id = socket.id;
+        disc.disconnected = false;
+        if (room.hostId === oldId) room.hostId = socket.id;
+        socket.join(code);
+        socket.data.code = code;
+        addLog(room, disc.name + ' reconnected.');
+        const pIdx = room.players.findIndex(p => p.id === socket.id);
+        if (pIdx === room.currentTurn) startTurnTimer(code);
+        broadcastState(code);
+        return;
+      }
+      socket.emit('error', 'Game already in progress.');
+      return;
+    }
     if (room.players.length >= 5) { socket.emit("error", "Room is full (max 5 players)."); return; }
 
     room.players.push({
