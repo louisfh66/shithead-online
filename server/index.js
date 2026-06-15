@@ -56,7 +56,7 @@ function canPlay(card, pile, mustPlayLower) {
   const top = effectiveTopCard(pile);
   if (!top) return true;
   const val = RANK_VALUE[card.rank];
-  if (mustPlayLower) return val < 7;
+  if (mustPlayLower) return val <= 7;
   return val >= RANK_VALUE[top.rank];
 }
 
