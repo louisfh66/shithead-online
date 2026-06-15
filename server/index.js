@@ -150,6 +150,9 @@ function startTurnTimer(code) {
   clearTurnTimer(room);
 
   room.turnDeadline = Date.now() + TURN_TIMEOUT;
+  // Broadcast immediately so clients receive the deadline
+  broadcastState(code);
+
   room.turnTimer = setTimeout(() => {
     const r = getRoom(code);
     if (!r || r.phase !== "game") return;

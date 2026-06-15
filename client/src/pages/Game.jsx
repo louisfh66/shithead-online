@@ -174,7 +174,6 @@ export default function Game({ gameState }) {
   }, [turnDeadline]);
 
   if (!gameState) return null;
-  console.log("deadline:", gameState.turnDeadline, "timeLeft:", timeLeft);
   const { pile, deckCount, currentTurn, mustPlayLower, players, myHand, myFaceUp, myFaceDown, myId, log } = gameState;
 
   const myIdx = players.findIndex(p => p.id === myId);
