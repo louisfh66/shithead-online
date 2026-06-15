@@ -578,6 +578,20 @@ io.on("connection", (socket) => {
     broadcastState(code);
   });
 
+
+  // ── CHAT ──────────────────────────────────────────────────
+  socket.on('chatMessage', ({ message }) => {
+    const code = socket.data.code;
+    const room = getRoom(code);
+    if (!room) return;
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+    const msg = { name: player.name, message: message.slice(0, 200), id: socket.id, ts: Date.now() };
+    if (!room.chat) room.chat = [];
+    room.chat = [...room.chat, msg].slice(-50);
+    io.to(code).emit('chatMessage', msg);
+  });
+
   // ── DISCONNECT ────────────────────────────────────────────
   socket.on("disconnect", () => {
     const code = socket.data.code;
