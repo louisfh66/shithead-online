@@ -7,10 +7,7 @@ const app = express();
 app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: ["http://localhost:5173", "https://www.shithead.website", "https://shithead.website"],
-    methods: ["GET", "POST"]
-  }
+  cors: { origin: "http://localhost:5173", methods: ["GET", "POST"] }
 });
 
 // ─── UTILS ────────────────────────────────────────────────────
@@ -316,31 +313,35 @@ io.on("connection", (socket) => {
     }
 
     // Special cards
-    if (rank === "10") {
+    if (rank === '10') {
       burned = true;
       extraTurn = true;
       room.pile = [];
       room.mustPlayLower = false;
-      addLog(room, `🔥 ${player.name} played 10 — pile burns! Plays again.`);
+      addLog(room, player.name + ' played 10 — pile burns! Plays again.');
     } else if (checkBurn(room.pile)) {
       burned = true;
       extraTurn = true;
       room.pile = [];
       room.mustPlayLower = false;
-      addLog(room, `🔥 Four of a kind — auto burn! ${player.name} plays again.`);
-    } else if (rank === "8") {
+      addLog(room, 'Four of a kind — auto burn! ' + player.name + ' plays again.');
+    } else if (rank === '8') {
       skipCount = cards.length;
       room.mustPlayLower = false;
-      addLog(room, `⏭ ${player.name} played ${cards.length}x 8 — skip${cards.length > 1 ? `s ${cards.length} players` : "s next player"}.`);
-    } else if (rank === "7") {
+      addLog(room, player.name + ' played ' + cards.length + 'x 8 — skip' + (cards.length > 1 ? 's ' + cards.length + ' players' : 's next player') + '.');
+    } else if (rank === '7') {
       room.mustPlayLower = true;
-      addLog(room, `⬇ ${player.name} played 7 — next player must go lower.`);
-    } else if (rank === "2") {
+      addLog(room, player.name + ' played 7 — next must go lower.');
+    } else if (rank === '2') {
       room.mustPlayLower = false;
-      addLog(room, `💧 ${player.name} played 2 — pile reset.`);
-
+      addLog(room, player.name + ' played 2 — pile reset.');
+    } else if (rank === '3') {
+      const effTop = effectiveTopCard(room.pile);
+      room.mustPlayLower = effTop?.rank === '7';
+      addLog(room, player.name + ' played 3 (invisible)' + (room.mustPlayLower ? ' — still on a 7, next must go lower' : '') + '.');
+    } else {
       room.mustPlayLower = false;
-      addLog(room, `${player.name} played ${cards.map(c => c.rank + c.suit).join(", ")}.`);
+      addLog(room, player.name + ' played ' + cards.map(c => c.rank + c.suit).join(', ') + '.');
     }
 
     // If pile was burned, mustPlayLower must be false
