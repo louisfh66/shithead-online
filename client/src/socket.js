@@ -1,3 +1,6 @@
 import { io } from "socket.io-client";
-export const socket = io("http://localhost:3001");
+const URL = import.meta.env.PROD
+  ? "https://shithead-server-eb9f.onrender.com"
+  : "http://localhost:3001";
+export const socket = io(URL);
 export default socket;
