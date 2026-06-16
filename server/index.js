@@ -556,7 +556,7 @@ io.on("connection", (socket) => {
 
     room.currentTurn = extraTurn
       ? (player.finished ? nextAlive(room, playerIdx, 1) : playerIdx)
-      : nextAlive(room, playerIdx, skipCount);
+      : nextAlive(room, playerIdx, 1 + skipCount);
 
     broadcastState(code);
     startTurnTimer(code);
