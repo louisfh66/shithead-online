@@ -126,6 +126,10 @@ function broadcastState(code) {
       shitheadId: room.shitheadId || null,
       code,
       turnDeadline,
+      burning: room.burning || false,
+      stats: room.stats || {},
+      lastPlayedCards: room.lastPlayedCards || [],
+      lastPlayedBy: room.lastPlayedBy || null,
     });
   });
 }
@@ -264,6 +268,7 @@ io.on("connection", (socket) => {
       shitheadId: null,
       turnTimer: null,
       turnDeadline: null,
+      stats: {}, // { [playerId]: { burns, pickups, cardsPlayed } }
     };
 
     socket.join(code);
@@ -361,6 +366,9 @@ io.on("connection", (socket) => {
     room.phase = "setup";
     room.finishOrder = [];
     room.shitheadId = null;
+    room.stats = {};
+    room.lastPlayedCards = [];
+    room.lastPlayedBy = null;
 
     room.players.forEach(p => {
       const cards = deck.splice(0, 9);
@@ -458,16 +466,51 @@ io.on("connection", (socket) => {
     }
 
     // Special cards
-    if (rank === "10") {
+    const isBurn = rank === "10" || checkBurn(room.pile);
+    if (isBurn) {
       extraTurn = true;
-      room.pile = [];
       room.mustPlayLower = false;
-      addLog(room, player.name + " played 10 — pile burns! Plays again.");
-    } else if (checkBurn(room.pile)) {
-      extraTurn = true;
-      room.pile = [];
-      room.mustPlayLower = false;
-      addLog(room, "Four of a kind — auto burn! " + player.name + " plays again.");
+      room.burning = true;
+      if (!room.stats[player.id]) room.stats[player.id] = {burns:0,pickups:0,cardsPlayed:0};
+      room.stats[player.id].burns++;
+      if (rank === "10") {
+        room.stats[player.id].cardsPlayed = (room.stats[player.id].cardsPlayed||0) + cards.length;
+        addLog(room, player.name + " played 10 — pile burns! Plays again.");
+      } else {
+        addLog(room, "Four of a kind — auto burn! " + player.name + " plays again.");
+      }
+      // Check win before delay
+      if (hasNoCards(player) && !player.finished) {
+        player.finished = true;
+        player.finishPosition = room.finishOrder.length + 1;
+        room.finishOrder.push(player.id);
+        addLog(room, player.name + " is out!");
+      }
+      const activeNow = room.players.filter(p => !p.finished);
+      if (activeNow.length === 1) {
+        const sh = activeNow[0];
+        sh.shitheadCount = (sh.shitheadCount||0) + 1;
+        room.shitheadId = sh.id;
+        room.finishOrder.push(sh.id);
+        room.phase = "results";
+        clearTurnTimer(room);
+        addLog(room, sh.name + " is the Shithead!");
+        broadcastState(code);
+        setTimeout(() => { const r=getRoom(code); if(r){r.pile=[];r.burning=false;broadcastState(code);} }, 1500);
+        return;
+      }
+      const nextTurnIdx = player.finished ? nextAlive(room, playerIdx, 1) : playerIdx;
+      broadcastState(code);
+      setTimeout(() => {
+        const r = getRoom(code);
+        if (!r) return;
+        r.pile = [];
+        r.burning = false;
+        r.currentTurn = nextTurnIdx;
+        broadcastState(code);
+        startTurnTimer(code);
+      }, 1500);
+      return;
     } else if (rank === "8") {
       skipCount = cards.length;
       room.mustPlayLower = false;
@@ -513,7 +556,7 @@ io.on("connection", (socket) => {
 
     room.currentTurn = extraTurn
       ? (player.finished ? nextAlive(room, playerIdx, 1) : playerIdx)
-      : nextAlive(room, playerIdx, 1 + skipCount);
+      : nextAlive(room, playerIdx, skipCount);
 
     broadcastState(code);
     startTurnTimer(code);
@@ -536,6 +579,8 @@ io.on("connection", (socket) => {
     room.pile = [];
     room.mustPlayLower = false;
     addLog(room, player.name + " picked up the pile.");
+    if (!room.stats[player.id]) room.stats[player.id] = {burns:0,pickups:0,cardsPlayed:0};
+    room.stats[player.id].pickups++;
     room.currentTurn = nextAlive(room, playerIdx, 1);
     broadcastState(code);
     startTurnTimer(code);
